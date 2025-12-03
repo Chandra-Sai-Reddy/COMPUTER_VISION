@@ -1,0 +1,36 @@
+{
+    "camera": "MacBook Air Camera (0000:0001)",
+    "platform": "Macintosh; Intel Mac OS X 10_15_7",
+    "camera_matrix": [
+        [
+            698.0818439252113,
+            0,
+            638.4953876192917
+        ],
+        [
+            0,
+            696.9649711604625,
+            362.29450746800944
+        ],
+        [
+            0,
+            0,
+            1
+        ]
+    ],
+    "distortion_coefficients": [
+        -0.03803778122444572,
+        0.014492213883994581,
+        -0.0004902078565395319,
+        0.0006127187854690676,
+        -0.0024317717687045532
+    ],
+    "distortion_model": "rectilinear",
+    "avg_reprojection_error": 0.3356840193762233,
+    "img_size": [
+        1280,
+        720
+    ],
+    "keyframes": 7,
+    "calibration_time": "Wed, 15 Oct 2025 00:27:44 GMT"
+}

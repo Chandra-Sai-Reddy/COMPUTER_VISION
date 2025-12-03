@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Face Verification</title>
+<style>
+#status { font-weight: bold; margin-top: 1em; }
+video { border: 1px solid #888; max-width: 100%; }
+</style>
+</head>
+<body>
+<h2>Face Verification Required</h2>
+<video id="video" autoplay width="640" height="480"></video>
+<p id="status">Looking for face...</p>
+
+<script>
+const video = document.getElementById("video");
+const status = document.getElementById("status");
+
+// Access webcam
+navigator.mediaDevices.getUserMedia({video:true})
+  .then(stream => video.srcObject = stream)
+  .catch(err => alert("Camera access denied: "+err));
+
+function captureFrame() {
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video,0,0);
+    return canvas.toDataURL("image/jpeg");
+}
+
+// Poll server every 1s until recognized
+const interval = setInterval(async () => {
+    const imgData = captureFrame();
+    const resp = await fetch("/verify_face", {
+        method:"POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({image: imgData})
+    });
+    const result = await resp.json();
+    if(result.authorized){
+        status.textContent = "✅ Face recognized! Redirecting…";
+        clearInterval(interval);
+        window.location.href = "/home";
+    } else {
+        status.textContent = "❌ Face not recognized. Please center your face.";
+    }
+}, 1000);
+</script>
+</body>
+</html>

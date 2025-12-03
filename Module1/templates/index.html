@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>CSC8830 A1 – Real-World Measurement (Fixed)</title>
+<style>
+ body { font-family: Arial; margin: 2em; }
+ canvas { border: 1px solid #888; max-width: 100%; height: auto; }
+ input { margin: 0.5em; }
+</style>
+</head>
+<body>
+<h2>Real-World Measurement (Perspective Projection)</h2>
+<input type="file" id="upload"><br>
+<label>Z (cm):</label> <input id="Z" value="40"><br>
+<canvas id="canvas"></canvas>
+<p id="result"></p>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+let img = new Image();
+let points = [];
+let scaleX = 1, scaleY = 1; // scaling factors
+
+// Load uploaded image
+document.getElementById("upload").onchange = e => {
+  img.src = URL.createObjectURL(e.target.files[0]);
+  img.onload = () => {
+    // Fit image to browser width but keep ratio
+    const maxWidth = window.innerWidth * 0.8; // limit 80% of screen
+    const ratio = img.width / img.height;
+    const displayWidth = Math.min(maxWidth, img.width);
+    const displayHeight = displayWidth / ratio;
+
+    canvas.width = displayWidth;
+    canvas.height = displayHeight;
+    ctx.drawImage(img, 0, 0, displayWidth, displayHeight);
+
+    // Save scale ratios (displayed / actual)
+    scaleX = img.width / displayWidth;
+    scaleY = img.height / displayHeight;
+    console.log(`Scale factors: X=${scaleX.toFixed(2)}, Y=${scaleY.toFixed(2)}`);
+  };
+};
+
+// Handle click events
+canvas.onclick = e => {
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * scaleX;
+  const y = (e.clientY - rect.top) * scaleY;
+
+  points.push({ x, y });
+
+  // Draw marker on canvas (scaled for display)
+  ctx.fillStyle = "red";
+  ctx.beginPath();
+  ctx.arc((x / scaleX), (y / scaleY), 4, 0, 2 * Math.PI);
+  ctx.fill();
+
+  if (points.length === 2) {
+    const dx = points[0].x - points[1].x;
+    const dy = points[0].y - points[1].y;
+    const pxDist = Math.hypot(dx, dy);
+
+    fetch("/measure", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        Z: document.getElementById("Z").value,
+        px: pxDist
+      })
+    })
+    .then(r => r.json())
+    .then(res => {
+      document.getElementById("result").textContent = 
+        `Estimated real-world size: ${res.real_size} cm`;
+    });
+
+    // Draw connecting line on displayed image
+    ctx.strokeStyle = "lime";
+    ctx.beginPath();
+    ctx.moveTo(points[0].x / scaleX, points[0].y / scaleY);
+    ctx.lineTo(points[1].x / scaleX, points[1].y / scaleY);
+    ctx.stroke();
+
+    // Reset
+    points = [];
+  }
+};
+</script>
+</body>
+</html>
