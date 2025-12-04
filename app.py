@@ -18,7 +18,7 @@ from Module3 import features
 from Module4.task1 import panorama
 from Module4.task2 import sift_scratch
 from Module5_6 import tracker
-from Module7 import stereo_pose
+# from Module7 import stereo_pose
 
 # PAGE CONFIGURATION
 st.set_page_config(page_title="CV Dashboard", layout="wide")
