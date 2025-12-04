@@ -3,26 +3,27 @@ import cv2
 import numpy as np
 
 # ---------------------------------------------------------
-# PATHS
+# PATHS (Streamlit Cloud compatible)
 # ---------------------------------------------------------
-DEFAULT_TEMPLATES_DIR = (
-    "/Users/donthireddychandrasaireddy/Desktop/COMPUTER_VISION/Module2/templates"
-)
-OUTPUT_DIR = (
-    "/Users/donthireddychandrasaireddy/Desktop/COMPUTER_VISION/Module2/output"
-)
 
-os.makedirs(DEFAULT_TEMPLATES_DIR, exist_ok=True)
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+# Folder where user stores templates (read-only on Streamlit Cloud)
+DEFAULT_TEMPLATES_DIR = "Module2/templates"
+
+# Output directory (Streamlit Cloud only allows writing to /mount/tmp)
+OUTPUT_DIR = "/mount/tmp/module2_output"
 
 SUPPORTED_EXTS = (".png", ".jpg", ".jpeg")
 THRESHOLD = 0.4
 SCALE_RANGE = np.linspace(0.4, 1.8, 20)
-EXPANSION_FACTOR = 1.6  # enlarge box a bit, still ok for assignment
+EXPANSION_FACTOR = 1.6  # enlarge box a bit
 
 
+# ---------------------------------------------------------
+# Helper: Load template files
+# ---------------------------------------------------------
 def _load_template_files(templates_dir: str):
     """Return sorted list of valid template filenames in templates_dir."""
+
     print("DEBUG: TEMPLATES_DIR =", templates_dir)
 
     if not os.path.isdir(templates_dir):
@@ -34,28 +35,20 @@ def _load_template_files(templates_dir: str):
         for f in sorted(os.listdir(templates_dir))
         if f.lower().endswith(SUPPORTED_EXTS)
     ]
+
     print("DEBUG: found template files:", files)
     return files
 
 
+# ---------------------------------------------------------
+# Main Template Matching Function
+# ---------------------------------------------------------
 def match_from_database(scene_bgr, templates_dir: str | None = None):
     """
-    Main function called by app.py (Task 1).
-
-    Parameters
-    ----------
-    scene_bgr : np.ndarray
-        BGR scene image from Streamlit uploader.
-    templates_dir : str or None
-        Folder containing template images. If None, DEFAULT_TEMPLATES_DIR is used.
-
-    Returns
-    -------
-    result_img : np.ndarray or None
-        Scene with bounding box drawn (if any match).
-    msg : str
-        Status message.
+    Main function called by app.py.
+    Streamlit Cloud safe (no writing outside /mount/tmp).
     """
+
     if scene_bgr is None:
         return None, "No scene image passed to template_matching."
 
@@ -64,7 +57,6 @@ def match_from_database(scene_bgr, templates_dir: str | None = None):
 
     template_files = _load_template_files(templates_dir)
     if not template_files:
-        # Folder missing or empty
         return scene_bgr, f"No templates found in folder: {templates_dir}"
 
     scene_gray = cv2.cvtColor(scene_bgr, cv2.COLOR_BGR2GRAY)
@@ -77,11 +69,12 @@ def match_from_database(scene_bgr, templates_dir: str | None = None):
     global_best_template = None
 
     # -----------------------------------------------------
-    # Search over all templates and scales (correlation)
+    # Search over all templates & scales
     # -----------------------------------------------------
     for tmpl_name in template_files:
         tmpl_path = os.path.join(templates_dir, tmpl_name)
         tmpl_bgr = cv2.imread(tmpl_path)
+
         if tmpl_bgr is None:
             print("DEBUG: failed to read template:", tmpl_path)
             continue
@@ -103,7 +96,6 @@ def match_from_database(scene_bgr, templates_dir: str | None = None):
             if h > H or w > W:
                 continue
 
-            # Normalized correlation
             res = cv2.matchTemplate(
                 scene_gray, resized, cv2.TM_CCOEFF_NORMED
             )
@@ -118,7 +110,7 @@ def match_from_database(scene_bgr, templates_dir: str | None = None):
 
     result_img = scene_bgr.copy()
 
-    # No good match found (or ALL templates failed to load)
+    # No good match found
     if (
         global_best_val is None
         or global_best_loc is None
@@ -130,14 +122,14 @@ def match_from_database(scene_bgr, templates_dir: str | None = None):
         return result_img, msg
 
     # -----------------------------------------------------
-    # Draw ONLY bounding box + label (no pixelation)
+    # Draw bounding box + label
     # -----------------------------------------------------
     x, y = global_best_loc
     w, h = global_best_w, global_best_h
 
-    # Optionally enlarge box a little
     cx = x + w // 2
     cy = y + h // 2
+
     new_w = int(w * EXPANSION_FACTOR)
     new_h = int(h * EXPANSION_FACTOR)
 
@@ -146,10 +138,8 @@ def match_from_database(scene_bgr, templates_dir: str | None = None):
     x2 = min(cx + new_w // 2, W)
     y2 = min(cy + new_h // 2, H)
 
-    # Bounding box
     cv2.rectangle(result_img, (x1, y1), (x2, y2), (0, 255, 0), 3)
 
-    # Label with template name + correlation score
     label = f"{global_best_template} ({global_best_val:.2f})"
     cv2.putText(
         result_img,
@@ -161,9 +151,14 @@ def match_from_database(scene_bgr, templates_dir: str | None = None):
         2,
     )
 
-    # Save result (optional, useful for report)
+    # -----------------------------------------------------
+    # Save output image (ONLY in /mount/tmp)
+    # -----------------------------------------------------
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
     out_name = f"result_{os.path.splitext(global_best_template)[0]}.jpg"
     out_path = os.path.join(OUTPUT_DIR, out_name)
+
     cv2.imwrite(out_path, result_img)
     print("DEBUG: saved result to:", out_path)
 
