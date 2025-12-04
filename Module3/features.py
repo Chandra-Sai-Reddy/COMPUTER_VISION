@@ -189,170 +189,40 @@ def get_boundary(img_bgr):
         boundary_vis = img_bgr.copy()
 
     return edges_for_boundary, boundary_vis
-# ==========================
-# TASKS 4 & 5 – ArUco + SAM2
-# ==========================
+# ---- Task 4: ArUco Boundary Detection ----
+def process_aruco_boundary(img):
+    if img is None:
+        return None, "No image provided."
 
-# --- ArUco helper: try multiple dictionaries ---
-ARUCO_DICT_TYPES = [
-    cv2.aruco.DICT_6X6_250,
-    cv2.aruco.DICT_5X5_100,
-    cv2.aruco.DICT_4X4_50,
-]
+    # Convert to grayscale
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-def _detect_aruco_any(image_bgr):
+    # Load default dictionary
+    aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+    parameters = cv2.aruco.DetectorParameters()
+    detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
+
+    corners, ids, _ = detector.detectMarkers(gray)
+    if not corners:
+        return None, "No ArUco markers found."
+
+    # Flatten corner list
+    all_pts = np.vstack([c[0] for c in corners]).astype(np.int32)
+
+    # Convex hull
+    hull = cv2.convexHull(all_pts)
+
+    result = img.copy()
+    cv2.drawContours(result, [hull], -1, (0, 255, 0), 3)
+    cv2.aruco.drawDetectedMarkers(result, corners, ids)
+
+    return result, None
+
+
+# ---- Task 5: SAM2 Disabled on Streamlit ----
+def process_sam2_segmentation_cloud():
     """
-    Try several common ArUco dictionaries and return
-    the first successful detection.
+    Placeholder function – SAM2 cannot run on Streamlit Cloud.
+    User must upload precomputed SAM2 masks instead.
     """
-    for dict_type in ARUCO_DICT_TYPES:
-        aruco_dict = cv2.aruco.getPredefinedDictionary(dict_type)
-        params = cv2.aruco.DetectorParameters()
-        detector = cv2.aruco.ArucoDetector(aruco_dict, params)
-
-        corners, ids, _ = detector.detectMarkers(image_bgr)
-        if corners and ids is not None and len(corners) > 0:
-            print(f"[Module3.features] ArUco detected with dict {dict_type}")
-            return corners, ids
-
-    return [], None
-
-
-# --- SAM2 setup (load once when module is imported) ---
-SAM2_PREDICTOR = None
-SAM2_DEVICE = "cpu"
-
-def _init_sam2():
-    """
-    Lazy-load the SAM2 model on first use, reuse afterwards.
-    """
-    global SAM2_PREDICTOR, SAM2_DEVICE
-    if SAM2_PREDICTOR is not None:
-        return SAM2_PREDICTOR, SAM2_DEVICE
-
-    if torch.cuda.is_available():
-        SAM2_DEVICE = "cuda"
-    else:
-        SAM2_DEVICE = "cpu"
-
-    print(f"[Module3.features] Loading SAM2 on device: {SAM2_DEVICE}")
-    SAM2_PREDICTOR = SAM2ImagePredictor.from_pretrained(
-        "facebook/sam2-hiera-large",
-        device=SAM2_DEVICE,
-    )
-    return SAM2_PREDICTOR, SAM2_DEVICE
-
-
-def get_aruco_hull(img_bgr):
-    """
-    TASK 4:
-    Detect ArUco markers in a single BGR image and draw the
-    convex hull of all marker corners.
-
-    Returns:
-        hull_image (BGR)  or None if no markers.
-        message (str)
-    """
-    image = img_bgr.copy()
-
-    # Try all supported dictionaries
-    corners, ids = _detect_aruco_any(image)
-
-    if not corners or ids is None:
-        return None, "No ArUco markers found in image (tried several dictionaries)."
-
-    # Collect all marker corners
-    all_corners = []
-    for marker_corners in corners:
-        for corner in marker_corners[0]:
-            all_corners.append(corner)
-
-    if not all_corners:
-        return None, "No ArUco corners found."
-
-    points = np.array(all_corners, dtype=np.int32)
-    hull_indices = cv2.convexHull(points, returnPoints=False)
-    hull_points = points[hull_indices.squeeze()]
-
-    hull_image = image.copy()
-    cv2.aruco.drawDetectedMarkers(hull_image, corners, ids)
-    cv2.drawContours(hull_image, [hull_points], -1, (255, 0, 0), 3)  # Blue hull
-
-    return hull_image, "ArUco convex hull drawn successfully."
-
-def get_sam2_segmentation(img_bgr):
-    """
-    TASK 5:
-    Use ArUco marker centers as prompts for SAM2 to segment the
-    non-rectangular object.
-
-    Returns:
-        mask_image   : uint8 mask (0 or 255)
-        overlay_image: BGR image with red overlay + green prompt dots
-        message      : str
-    """
-    if img_bgr is None or img_bgr.size == 0:
-        return None, None, "Input image is empty."
-
-    if not SAM2_AVAILABLE:
-        return None, None, f"SAM2 not available: {SAM2_IMPORT_ERROR}"
-
-    image = img_bgr.copy()
-
-    # 1. Detect ArUco markers (try several dictionaries)
-    corners, ids = _detect_aruco_any(image)
-    if not corners or ids is None:
-        return None, None, "No ArUco markers found – cannot prompt SAM2 (tried several dictionaries)."
-
-    # 2. Compute marker centers to use as prompts
-    prompt_points = []
-    for marker_corners in corners:
-        M = cv2.moments(marker_corners[0])
-        if M["m00"] != 0:
-            cX = int(M["m10"] / M["m00"])
-            cY = int(M["m01"] / M["m00"])
-            prompt_points.append([cX, cY])
-
-    if not prompt_points:
-        return None, None, "Could not compute marker centers."
-
-    try:
-        # 3. Init SAM2 (load model once)
-        predictor, device = _init_sam2()
-
-        # SAM2 expects RGB and NumPy points
-        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        predictor.set_image(image_rgb)
-
-        point_coords = np.array(prompt_points, dtype=np.float32)   # (N, 2)
-        point_labels = np.ones(len(prompt_points), dtype=np.int32) # (N,)
-
-        # 4. Run SAM2 – NOTE: using .predict, NOT .predict_torch
-        masks, scores, logits = predictor.predict(
-            point_coords=point_coords,
-            point_labels=point_labels,
-            multimask_output=True,
-        )
-
-        # scores is a NumPy array, pick best mask by score
-        best_idx = int(np.argmax(scores))
-        best_mask = masks[best_idx]            # (H, W) bool or 0/1
-        best_mask = best_mask.astype(bool)
-
-        # 5. Build mask image (single-channel 0/255)
-        mask_image = (best_mask.astype(np.uint8) * 255)
-
-        # 6. Build overlay image
-        overlay = image.copy()
-        overlay[best_mask] = (0, 0, 255)  # Red where mask is True
-        final_vis = cv2.addWeighted(image, 0.6, overlay, 0.4, 0)
-
-        # Draw green dots at marker centers
-        for pt in prompt_points:
-            cv2.circle(final_vis, tuple(pt), 5, (0, 255, 0), -1)
-
-        return mask_image, final_vis, "SAM2 segmentation computed successfully."
-
-    except Exception as e:
-        # If anything goes wrong, don't crash Streamlit
-        return None, None, f"SAM2 segmentation failed: {e}"
+    return None, "SAM2 cannot run on Streamlit Cloud. Upload precomputed SAM2 results."

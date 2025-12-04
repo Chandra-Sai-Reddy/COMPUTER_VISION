@@ -311,25 +311,52 @@ elif module_selection == "3. Features & Segmentation":
                              caption="ArUco Convex Hull", use_column_width=True)
 
         elif task_mode == "Task 5: SAM2 Segmentation (Compare)":
-            st.subheader("Task 5: SAM2 Segmentation (Comparison)")
-            st.info("Uses ArUco marker centers as prompts for the SAM2 model.")
+    st.subheader("Task 5: SAM2 Segmentation (Comparison)")
+    st.info("⚠️ SAM2 cannot run on Streamlit Cloud.  
+             Upload your pre-computed SAM2 mask from your local machine.")
 
-            with st.spinner("Running ArUco + SAM2 (this may take a moment the first time)..."):
-                mask_img, overlay_img, msg = features.get_sam2_segmentation(img)
+    # --- Upload SAM2 segmentation mask ---
+    sam2_mask_file = st.file_uploader(
+        "Upload SAM2 Mask (PNG format recommended)", 
+        type=["png", "jpg", "jpeg"]
+    )
 
-            if mask_img is None or overlay_img is None:
-                st.error(msg)
-            else:
-                st.success(msg)
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.image(cv2.cvtColor(img, cv2.COLOR_BGR2RGB),
-                             caption="Original", use_column_width=True)
-                with col2:
-                    st.image(mask_img, caption="SAM2 Mask", use_column_width=True)
-                with col3:
-                    st.image(cv2.cvtColor(overlay_img, cv2.COLOR_BGR2RGB),
-                             caption="Overlay (Mask + Prompts)", use_column_width=True)
+    # --- Show ArUco Boundary for comparison ---
+    st.subheader("ArUco Boundary (Auto-Computed)")
+    aruco_img, msg = features.get_aruco_hull(img)
+
+    if aruco_img is None:
+        st.error(msg)
+    else:
+        st.image(cv2.cvtColor(aruco_img, cv2.COLOR_BGR2RGB), 
+                 caption="ArUco Convex Hull", 
+                 use_column_width=True)
+
+    # --- If user uploaded a mask, show SAM2 results ---
+    if sam2_mask_file:
+        st.subheader("Uploaded SAM2 Mask")
+        sam2_mask = cv2.imdecode(np.frombuffer(sam2_mask_file.read(), np.uint8), 1)
+        st.image(sam2_mask, caption="SAM2 Segmentation Mask", use_column_width=True)
+
+        # Optional IoU comparison
+        if st.checkbox("Compute IoU between ArUco and SAM2 Masks"):
+            try:
+                aruco_gray = cv2.cvtColor(aruco_img, cv2.COLOR_BGR2GRAY)
+                _, aruco_bin = cv2.threshold(aruco_gray, 10, 255, cv2.THRESH_BINARY)
+
+                sam2_gray = cv2.cvtColor(sam2_mask, cv2.COLOR_BGR2GRAY)
+                _, sam2_bin = cv2.threshold(sam2_gray, 10, 255, cv2.THRESH_BINARY)
+
+                intersection = np.logical_and(aruco_bin > 0, sam2_bin > 0).sum()
+                union = np.logical_or(aruco_bin > 0, sam2_bin > 0).sum()
+
+                iou = intersection / union if union > 0 else 0.0
+
+                st.success(f"IoU Score: **{iou:.4f}**")
+
+            except Exception as e:
+                st.error(f"IoU Calculation Error: {str(e)}")
+
 
 
 # --- MODULE 4: STITCHING & SIFT ---
