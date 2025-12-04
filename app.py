@@ -238,30 +238,35 @@ elif module_selection == "2. Object Detection (Templates)":
                     st.image(restored, channels="BGR", caption="3. Restored (Output)")
             else:
                 st.warning("Please upload an image.")
-
 # --- MODULE 3: FEATURES & SEGMENTATION ---
 elif module_selection == "3. Features & Segmentation":
     st.header("3. Features & Segmentation")
     
     task_mode = st.radio(
-    "Select Task:",
-    [
-        "Task 1: Gradient & LoG", 
-        "Task 2: Keypoints (Edges/Corners)", 
-        "Task 3: Object Boundary",
-        "Task 4: ArUco Boundary (Non-Rectangular)",
-        "Task 5: SAM2 Segmentation (Compare)"
-    ],
-    horizontal=True
-)
+        "Select Task:",
+        [
+            "Task 1: Gradient & LoG", 
+            "Task 2: Keypoints (Edges/Corners)", 
+            "Task 3: Object Boundary",
+            "Task 4: ArUco Boundary (Non-Rectangular)",
+            "Task 5: SAM2 Segmentation (Compare)"
+        ],
+        horizontal=True
+    )
 
-    
     st.divider()
-    input_source = st.radio("Select Image Source:", ("Upload Image", "Take Photo"), horizontal=True)
+    input_source = st.radio(
+        "Select Image Source:",
+        ("Upload Image", "Take Photo"),
+        horizontal=True
+    )
     
     img_file = None
     if input_source == "Upload Image":
-        img_file = st.file_uploader("Upload Image for Analysis", type=['jpg', 'png', 'jpeg'])
+        img_file = st.file_uploader(
+            "Upload Image for Analysis",
+            type=['jpg', 'png', 'jpeg']
+        )
     else:
         img_file = st.camera_input("Take a picture for Analysis")
     
@@ -273,27 +278,45 @@ elif module_selection == "3. Features & Segmentation":
         st.image(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), width=400)
         st.divider() 
         
+        # ---------------- Task 1 ----------------
         if task_mode == "Task 1: Gradient & LoG":
             st.subheader("Gradient Analysis")
             mag, angle, log = features.get_gradient_and_log(img)
             col1, col2, col3 = st.columns(3)
-            with col1: st.image(mag, caption="Gradient Magnitude")
-            with col2: st.image(angle, caption="Gradient Angle")
-            with col3: st.image(log, caption="Laplacian of Gaussian")
+            with col1:
+                st.image(mag, caption="Gradient Magnitude")
+            with col2:
+                st.image(angle, caption="Gradient Angle")
+            with col3:
+                st.image(log, caption="Laplacian of Gaussian")
 
+        # ---------------- Task 2 ----------------
         elif task_mode == "Task 2: Keypoints (Edges/Corners)":
             st.subheader("Keypoint Detection")
             canny, corners = features.get_keypoints(img)
             col1, col2 = st.columns(2)
-            with col1: st.image(canny, caption="Canny Edges")
-            with col2: st.image(cv2.cvtColor(corners, cv2.COLOR_BGR2RGB), caption="Harris Corners")
+            with col1:
+                st.image(canny, caption="Canny Edges")
+            with col2:
+                st.image(
+                    cv2.cvtColor(corners, cv2.COLOR_BGR2RGB),
+                    caption="Harris Corners"
+                )
 
+        # ---------------- Task 3 ----------------
         elif task_mode == "Task 3: Object Boundary":
             st.subheader("Boundary Detection")
             mask, boundary = features.get_boundary(img)
             col1, col2 = st.columns(2)
-            with col1: st.image(mask, caption="Threshold Mask")
-            with col2: st.image(cv2.cvtColor(boundary, cv2.COLOR_BGR2RGB), caption="Object Boundary")
+            with col1:
+                st.image(mask, caption="Threshold Mask")
+            with col2:
+                st.image(
+                    cv2.cvtColor(boundary, cv2.COLOR_BGR2RGB),
+                    caption="Object Boundary"
+                )
+
+        # ---------------- Task 4 ----------------
         elif task_mode == "Task 4: ArUco Boundary (Non-Rectangular)":
             st.subheader("Task 4: ArUco-Based Boundary")
             st.info("Image must contain ArUco markers on the object boundary.")
@@ -305,57 +328,86 @@ elif module_selection == "3. Features & Segmentation":
                 st.success(msg)
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.image(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), caption="Original", use_column_width=True)
+                    st.image(
+                        cv2.cvtColor(img, cv2.COLOR_BGR2RGB),
+                        caption="Original",
+                        use_column_width=True
+                    )
                 with col2:
-                    st.image(cv2.cvtColor(hull_img, cv2.COLOR_BGR2RGB),
-                             caption="ArUco Convex Hull", use_column_width=True)
+                    st.image(
+                        cv2.cvtColor(hull_img, cv2.COLOR_BGR2RGB),
+                        caption="ArUco Convex Hull",
+                        use_column_width=True
+                    )
 
+        # ---------------- Task 5 (SAM2 via upload) ----------------
         elif task_mode == "Task 5: SAM2 Segmentation (Compare)":
-    st.subheader("Task 5: SAM2 Segmentation (Comparison)")
-    st.info("⚠️ SAM2 cannot run on Streamlit Cloud.  
-             Upload your pre-computed SAM2 mask from your local machine.")
+            st.subheader("Task 5: SAM2 Segmentation (Comparison)")
 
-    # --- Upload SAM2 segmentation mask ---
-    sam2_mask_file = st.file_uploader(
-        "Upload SAM2 Mask (PNG format recommended)", 
-        type=["png", "jpg", "jpeg"]
-    )
+            st.info(
+                """
+                ⚠️ SAM2 cannot run on Streamlit Cloud.
+                Please upload your pre-computed SAM2 segmentation mask for comparison.
+                """
+            )
 
-    # --- Show ArUco Boundary for comparison ---
-    st.subheader("ArUco Boundary (Auto-Computed)")
-    aruco_img, msg = features.get_aruco_hull(img)
+            # --- Upload SAM2 segmentation mask ---
+            sam2_mask_file = st.file_uploader(
+                "Upload SAM2 Mask (PNG/JPG)",
+                type=["png", "jpg", "jpeg"]
+            )
 
-    if aruco_img is None:
-        st.error(msg)
-    else:
-        st.image(cv2.cvtColor(aruco_img, cv2.COLOR_BGR2RGB), 
-                 caption="ArUco Convex Hull", 
-                 use_column_width=True)
+            # --- Show ArUco Boundary for comparison ---
+            st.subheader("ArUco Boundary (Auto-Computed)")
+            aruco_img, msg = features.get_aruco_hull(img)
 
-    # --- If user uploaded a mask, show SAM2 results ---
-    if sam2_mask_file:
-        st.subheader("Uploaded SAM2 Mask")
-        sam2_mask = cv2.imdecode(np.frombuffer(sam2_mask_file.read(), np.uint8), 1)
-        st.image(sam2_mask, caption="SAM2 Segmentation Mask", use_column_width=True)
+            if aruco_img is None:
+                st.error(msg)
+            else:
+                st.image(
+                    cv2.cvtColor(aruco_img, cv2.COLOR_BGR2RGB),
+                    caption="ArUco Convex Hull",
+                    use_column_width=True
+                )
 
-        # Optional IoU comparison
-        if st.checkbox("Compute IoU between ArUco and SAM2 Masks"):
-            try:
-                aruco_gray = cv2.cvtColor(aruco_img, cv2.COLOR_BGR2GRAY)
-                _, aruco_bin = cv2.threshold(aruco_gray, 10, 255, cv2.THRESH_BINARY)
+            # --- If user uploaded a mask, show SAM2 results ---
+            if sam2_mask_file:
+                st.subheader("Uploaded SAM2 Mask")
+                sam2_mask = cv2.imdecode(
+                    np.frombuffer(sam2_mask_file.read(), np.uint8),
+                    1
+                )
+                st.image(
+                    sam2_mask,
+                    caption="SAM2 Segmentation Mask",
+                    use_column_width=True
+                )
 
-                sam2_gray = cv2.cvtColor(sam2_mask, cv2.COLOR_BGR2GRAY)
-                _, sam2_bin = cv2.threshold(sam2_gray, 10, 255, cv2.THRESH_BINARY)
+                # Optional IoU comparison
+                if st.checkbox("Compute IoU between ArUco and SAM2 Masks"):
+                    try:
+                        aruco_gray = cv2.cvtColor(aruco_img, cv2.COLOR_BGR2GRAY)
+                        _, aruco_bin = cv2.threshold(
+                            aruco_gray, 10, 255, cv2.THRESH_BINARY
+                        )
 
-                intersection = np.logical_and(aruco_bin > 0, sam2_bin > 0).sum()
-                union = np.logical_or(aruco_bin > 0, sam2_bin > 0).sum()
+                        sam2_gray = cv2.cvtColor(sam2_mask, cv2.COLOR_BGR2GRAY)
+                        _, sam2_bin = cv2.threshold(
+                            sam2_gray, 10, 255, cv2.THRESH_BINARY
+                        )
 
-                iou = intersection / union if union > 0 else 0.0
+                        intersection = np.logical_and(
+                            aruco_bin > 0, sam2_bin > 0
+                        ).sum()
+                        union = np.logical_or(
+                            aruco_bin > 0, sam2_bin > 0
+                        ).sum()
 
-                st.success(f"IoU Score: **{iou:.4f}**")
+                        iou = intersection / union if union > 0 else 0.0
+                        st.success(f"IoU Score: **{iou:.4f}**")
 
-            except Exception as e:
-                st.error(f"IoU Calculation Error: {str(e)}")
+                    except Exception as e:
+                        st.error(f"IoU Calculation Error: {str(e)}")
 
 
 
