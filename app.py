@@ -5,7 +5,7 @@ import pandas as pd
 from streamlit_drawable_canvas import st_canvas
 from PIL import Image
 import sys
-import mediapipe as mp
+# import mediapipe as mp
 
 # --- IMPORT CHECK ---
 # Make sure your folders inside 'modules' are actually named 'Module1', 'Module2', etc.
@@ -716,63 +716,3 @@ elif module_selection == "6. Stereo & Pose Estimation":
             else:
                 st.warning(f"Selection Incomplete. Left: {len(points_L)}/3. Right: {len(points_R)}/3.")
 
-    # TASK 2: POSE & HAND TRACKING
-    elif mode_7 == "Task 2: Pose & Hand Tracking":
-        st.subheader("Real-Time Tracking (Pose & Hands)")
-        st.write("Uses MediaPipe to track skeleton or hands and logs coordinates to CSV.")
-        
-        track_type = st.radio("Tracking Target:", ["Body Pose", "Hand Tracking"], horizontal=True)
-        
-        if 'pose_data_log' not in st.session_state:
-            st.session_state['pose_data_log'] = []
-            
-        col_act, col_vid = st.columns([1, 3])
-        
-        with col_act:
-            run_cam = st.checkbox("Start Webcam")
-            if st.button("Clear Data Log"):
-                st.session_state['pose_data_log'] = []
-                st.success("Log cleared.")
-        
-        with col_vid:
-            FRAME_WINDOW = st.image([])
-
-        if run_cam:
-            cap = cv2.VideoCapture(0)
-            
-            if track_type == "Body Pose":
-                mp_model = mp.solutions.pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
-            else:
-                mp_model = mp.solutions.hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5)
-
-            while run_cam:
-                ret, frame = cap.read()
-                if not ret:
-                    st.error("Camera not detected.")
-                    break
-                
-                if track_type == "Body Pose":
-                    annotated_frame, data = stereo_pose.process_pose(frame, mp_model)
-                else:
-                    annotated_frame, data = stereo_pose.process_hands(frame, mp_model)
-                
-                if data:
-                    st.session_state['pose_data_log'].extend(data)
-
-                FRAME_WINDOW.image(annotated_frame, channels="BGR")
-            
-            cap.release()
-            mp_model.close()
-
-        if st.session_state['pose_data_log']:
-            st.divider()
-            st.write(f"### Data Logged: {len(st.session_state['pose_data_log'])} rows")
-            df = pd.DataFrame(st.session_state['pose_data_log'])
-            csv = df.to_csv(index=False).encode('utf-8')
-            
-            st.download_button(
-                label="Download Tracking Data (CSV)",
-                data=csv,
-                file_name=f"{track_type.lower().replace(' ', '_')}_data.csv",
-                mime='text/csv',
-            )
