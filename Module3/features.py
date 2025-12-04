@@ -1,17 +1,5 @@
 import cv2
 import numpy as np
-import torch
-from sam2.sam2_image_predictor import SAM2ImagePredictor
-import os
-
-# --- SAM2 import guard ---
-try:
-    from sam2.sam2_image_predictor import SAM2ImagePredictor
-    SAM2_AVAILABLE = True
-    SAM2_IMPORT_ERROR = ""
-except Exception as e:
-    SAM2_AVAILABLE = False
-    SAM2_IMPORT_ERROR = str(e)
 
 # ==========================
 # BASIC UTILITIES
@@ -155,8 +143,9 @@ def find_main_object_contour(gray):
     blur = cv2.GaussianBlur(gray, (5, 5), 0)
     edges = cv2.Canny(blur, 50, 150)
 
-    contours, hierarchy = cv2.findContours(edges, cv2.RETR_EXTERNAL,
-                                           cv2.CHAIN_APPROX_SIMPLE)
+    contours, hierarchy = cv2.findContours(
+        edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
     if not contours:
         return None, edges
 
@@ -189,40 +178,54 @@ def get_boundary(img_bgr):
         boundary_vis = img_bgr.copy()
 
     return edges_for_boundary, boundary_vis
-# ---- Task 4: ArUco Boundary Detection ----
-def process_aruco_boundary(img):
-    if img is None:
+
+
+# ==========================
+# TASK 4 – ARUCO BOUNDARY (NON-RECTANGULAR)
+# ==========================
+
+def get_aruco_hull(img_bgr):
+    """
+    Detects ArUco markers and draws the convex hull around them.
+    Returns:
+      - BGR image with hull + markers
+      - status message
+    """
+    if img_bgr is None:
         return None, "No image provided."
 
-    # Convert to grayscale
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
 
-    # Load default dictionary
-    aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-    parameters = cv2.aruco.DetectorParameters()
-    detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
+    try:
+        aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+        parameters = cv2.aruco.DetectorParameters()
+        detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
+    except Exception as e:
+        return None, f"ArUco not available in this OpenCV build: {e}"
 
     corners, ids, _ = detector.detectMarkers(gray)
     if not corners:
         return None, "No ArUco markers found."
 
-    # Flatten corner list
     all_pts = np.vstack([c[0] for c in corners]).astype(np.int32)
 
-    # Convex hull
     hull = cv2.convexHull(all_pts)
 
-    result = img.copy()
+    result = img_bgr.copy()
     cv2.drawContours(result, [hull], -1, (0, 255, 0), 3)
     cv2.aruco.drawDetectedMarkers(result, corners, ids)
 
-    return result, None
+    return result, "ArUco hull detected."
 
 
-# ---- Task 5: SAM2 Disabled on Streamlit ----
-def process_sam2_segmentation_cloud():
+# ==========================
+# TASK 5 – SAM2 PLACEHOLDER (CLOUD)
+# ==========================
+
+def get_sam2_segmentation(img_bgr):
     """
-    Placeholder function – SAM2 cannot run on Streamlit Cloud.
-    User must upload precomputed SAM2 masks instead.
+    Placeholder for SAM2 on Streamlit Cloud.
+    We do NOT run the model here (no torch).
+    The app instead lets the user upload precomputed SAM2 masks.
     """
-    return None, "SAM2 cannot run on Streamlit Cloud. Upload precomputed SAM2 results."
+    return None, None, "SAM2 cannot run on Streamlit Cloud. Upload a SAM2 mask instead."
