@@ -1,12 +1,7 @@
-streamlit==1.24.0
-streamlit-drawable-canvas==0.9.3
-
-# OpenCV (headless versions for servers – no GUI needed)
-opencv-python-headless==4.8.1.78
-opencv-contrib-python-headless==4.8.1.78
-
-# Core numeric / plotting
+streamlit>=1.35
+streamlit-drawable-canvas
+opencv-python-headless
 numpy
 pandas
-matplotlib
+pillow
 
